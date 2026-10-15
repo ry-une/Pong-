@@ -23,6 +23,7 @@ paddle2_pos = HEIGHT / 2.5
 paddle1_vel = 0
 paddle2_vel = 0
 paddle_vel = 5 
+pressed_keys = set()
 
 # initialize ball_pos and ball_vel for new bal in middle of table
 ball_pos = [WIDTH/2, HEIGHT/2]
@@ -46,6 +47,9 @@ def new_game():
     spawn_ball(0)
     paddle1_pos = HEIGHT / 2.5
     paddle2_pos = HEIGHT / 2.5
+    pressed_keys.clear()
+    paddle1_vel = 0
+    paddle2_vel = 0
 
 def draw(canvas):
     global score1, score2, paddle1_pos, paddle2_pos, ball_pos, ball_vel, paddle1_vel, paddle2_vel
@@ -80,11 +84,9 @@ def draw(canvas):
     # draw ball
     canvas.draw_circle(ball_pos, BALL_RADIUS, 2, "WHITE", "RED")
     
-    # update paddle's vertical position, keep paddle on the screen
-    if (paddle1_pos <= HEIGHT - PAD_HEIGHT and paddle1_vel > 0) or (paddle1_pos >= 0 and paddle1_vel < 0) :
-        paddle1_pos += paddle1_vel    
-    elif (paddle2_pos <= HEIGHT - PAD_HEIGHT and paddle2_vel > 0) or (paddle2_pos >= 0 and paddle2_vel < 0) :
-        paddle2_pos += paddle2_vel  
+    # Move both players independently, including at the exact canvas edges.
+    paddle1_pos = max(0, min(HEIGHT - PAD_HEIGHT, paddle1_pos + paddle1_vel))
+    paddle2_pos = max(0, min(HEIGHT - PAD_HEIGHT, paddle2_pos + paddle2_vel))
     
     # draw paddles
     canvas.draw_polygon([[0, paddle1_pos], [PAD_WIDTH, paddle1_pos],[PAD_WIDTH, (paddle1_pos) + PAD_HEIGHT ],[0, (paddle1_pos) + PAD_HEIGHT]], 2, "white", "blue");
@@ -95,35 +97,25 @@ def draw(canvas):
     canvas.draw_text(str(score1), [120, 100], 48, 'white')
     canvas.draw_text(str(score2), [450, 100], 48, 'white')
         
-def keydown(key):
+def update_paddle_velocities():
     global paddle1_vel, paddle2_vel
-    
-    #right side
-    if key == simplegui.KEY_MAP["down"]:
-        paddle2_vel = +paddle_vel
-    if key == simplegui.KEY_MAP["up"]:
-        paddle2_vel = -paddle_vel
-    
-    #left side
-    if key == simplegui.KEY_MAP["w"]:
-        paddle1_vel = -paddle_vel
-    if key == simplegui.KEY_MAP["s"]:
-        paddle1_vel = +paddle_vel
-   
+    # Opposing held keys cancel; releasing either resumes the remaining key.
+    paddle1_vel = paddle_vel * (int(simplegui.KEY_MAP["s"] in pressed_keys) -
+                               int(simplegui.KEY_MAP["w"] in pressed_keys))
+    paddle2_vel = paddle_vel * (int(simplegui.KEY_MAP["down"] in pressed_keys) -
+                               int(simplegui.KEY_MAP["up"] in pressed_keys))
+
+
+def keydown(key):
+    if key in (simplegui.KEY_MAP["w"], simplegui.KEY_MAP["s"],
+               simplegui.KEY_MAP["up"], simplegui.KEY_MAP["down"]):
+        pressed_keys.add(key)
+        update_paddle_velocities()
+
+
 def keyup(key):
-    global paddle1_vel, paddle2_vel, paddel_vel
-    
-    #left side
-    if key == simplegui.KEY_MAP["w"]:
-        paddle1_vel = 0
-    elif key == simplegui.KEY_MAP["s"]:
-        paddle1_vel = 0
-        
-    #right side
-    if key == simplegui.KEY_MAP["down"]:
-        paddle2_vel = 0
-    elif key == simplegui.KEY_MAP["up"]:
-        paddle2_vel = 0
+    pressed_keys.discard(key)
+    update_paddle_velocities()
 
 # create frame
 frame = simplegui.create_frame("Pong", WIDTH, HEIGHT)
