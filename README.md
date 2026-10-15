@@ -18,9 +18,11 @@ The game is stored in [PongPong](PongPong), an extensionless Python source file.
 
 The source requires an environment implementing the `simplegui` API used in the file. That API is not part of Python's standard library. No dependency manifest or verified local installation procedure is included.
 
-## Known limitations
+## Movement and reset behavior
 
-The paddle update logic uses `if`/`elif`, so updating the left paddle can prevent the right paddle from updating during the same frame. Runtime behavior has not been tested as part of this documentation update.
+Both paddles update independently during each draw callback and are clamped to the canvas boundaries. Holding both movement keys for one paddle cancels its movement; releasing either key resumes the direction still held. Repeated keydown events do not accumulate movement state.
+
+New Game clears scores, recorded held keys, and paddle velocities, restores paddle positions, and serves the ball to the left. A subsequent movement-key event can start motion again.
 
 ## Game-state walkthrough
 
@@ -29,10 +31,11 @@ The following describes [PongPong](PongPong) by source inspection; it is not a r
 | Function | Responsibility |
 | :--- | :--- |
 | spawn_ball(direction) | Places the ball at the center and chooses a random upward velocity, with horizontal direction determined by the argument. |
-| new_game() | Clears both scores, restores paddle positions, and serves the ball to the left. |
+| new_game() | Clears scores, held-key state, and velocities; restores paddle positions and serves left. |
 | draw(canvas) | Advances positions, checks walls and paddle gutters, updates scores, and renders the frame. |
-| keydown(key) | Sets the appropriate paddle velocity from the movement key. |
-| keyup(key) | Zeros the corresponding paddle velocity when its movement key is released. |
+| keydown(key) | Records a movement key and recalculates both paddle velocities. |
+| keyup(key) | Releases a recorded key and recalculates velocities from keys still held. |
+| update_paddle_velocities() | Resolves held keys into independent paddle velocities. |
 
 The source creates a 600 by 400 canvas, registers draw and keyboard handlers, adds the New Game button, calls new_game(), and starts the frame.
 
@@ -42,10 +45,14 @@ The source creates a 600 by 400 canvas, registers draw and keyboard handlers, ad
 - A successful paddle hit increases the magnitude of horizontal velocity by 20 percent. Vertical wall contact reverses vertical velocity.
 - Movement is advanced once per draw callback, without elapsed-time scaling. Observed speed therefore depends on the environment's callback timing.
 
-### Reset and keyboard edge cases
+## Regression tests
 
-Although new_game() declares the paddle velocity globals, it does not assign zero to them. A reset can therefore retain an existing movement velocity until a later key event changes it. The reset is not a full reset of all game state.
+With Python 3 installed, run from the repository root:
 
-Key release also zeros the paddle velocity without tracking whether the opposite movement key remains held. This matters when testing overlapping key presses. Together with the existing if/elif limitation, these are useful cases for a future code-fix task.
+```sh
+python -m unittest discover -s tests -v
+```
 
-When reproducing a behavior, record the runtime implementation, version, exact key sequence, whether New Game was clicked while a movement velocity was active, and the observed paddle and score state. A missing simplegui import is an environment/setup failure, not evidence that collision or scoring logic was exercised.
+The eight tests execute the actual game handlers through a display-free `simplegui` adapter. They cover simultaneous movement, opposing keys and key release, repeated keydown, reset, boundary clamping, unrelated keys, scoring on both sides, and paddle-hit acceleration. The suite was run with Python 3.12.
+
+The adapter does not test a real `simplegui` window, rendering, focus loss, or operating-system keyboard delivery. Manual play in a compatible runtime remains necessary. Timing still depends on draw callbacks, and the collision implementation is unchanged. When reporting a problem, include the runtime/version, exact key sequence, and observed paddle/score state.
